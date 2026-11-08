@@ -35,6 +35,10 @@ details .card{margin-top:8px;background:rgba(255,252,244,.9);border:2px solid rg
  border-top:3px solid var(--ink);box-shadow:0 -10px 30px rgba(43,27,61,.18)}
 .rug:after{content:"";position:absolute;inset:12px 0 0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 2px,transparent 2px 7px)}
 nav{position:relative;z-index:6;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:12px 12px 14px;background:#E4D6B8;border-top:3px solid var(--ink)}
+body.quiet #app{background:radial-gradient(120% 80% at 50% 75%,#EADFC6,#E0D2B2 70%)}
+body.quiet #glow{opacity:.12!important}
+body.quiet .chip{background:rgba(255,252,244,.55)}
+#bChat.on{background:var(--tur);border-color:var(--ink);color:#fff}
 button{font-family:'Press Start 2P',monospace;font-size:11px;color:var(--ink);background:var(--cream);border:3px solid var(--ink);border-radius:999px;min-height:52px;padding:0 20px;cursor:pointer;box-shadow:0 4px 0 var(--ink);transition:transform .08s,box-shadow .08s,background .2s}
 button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
 button.on{background:var(--yel)}
@@ -79,6 +83,7 @@ button.mag{background:var(--mag);color:#fff}
     <button id="bMic" aria-pressed="false">🎤 Escuchar</button>
     <button id="bMus" aria-pressed="false">🎶 Poner música</button>
     <button id="bMix" class="mag">🎊 Mixtura</button>
+    <button id="bChat" aria-pressed="false">🤫 Conversar</button>
     <div class="tempos" id="tempos">
       <button data-b="92">Lento 92</button><button data-b="108" class="on">Cumbia 108</button><button data-b="132">Saya 132</button>
     </div>
@@ -167,6 +172,7 @@ function startRecog(){
       for(let i=e.resultIndex;i<e.results.length;i++){
         for(let j=0;j<e.results[i].length;j++){
           const tx=(e.results[i][j].transcript||'').toLowerCase();
+          if(chatOn){chatHear(tx);return;}
           if(/baila|bailar|bailaremos|baile|danza|dance|saya|morenada|caporal|cueca|tinku|diablada|kullawada|cullawada|tobas/.test(tx)){hearBaila(tx);return;}
           if(/salud|cheers|chin ?chin/.test(tx)){hearSalud();return;}
           if(/seco|seca|dry|empty|vac[ií]o|vac[ií]a/.test(tx)){hearSeco();return;}
@@ -181,7 +187,7 @@ function startRecog(){
   }catch(_){recog=null;}
 }
 function stopRecog(){if(recog){const r=recog;recog=null;try{r.onend=null;r.stop()}catch(_){}}}
-window._claudio={hearName,hearSalud,hearSeco,hearInvitame,hearBaila,startFolk,glass,get folk(){return folk}};
+window._claudio={hearName,hearSalud,hearSeco,hearInvitame,hearBaila,startFolk,glass,toggleChat,chatHear,spanglishReply,get folk(){return folk},get chatOn(){return chatOn}};
 
 /* generated música: cumbia/huayño-ish loop, so the room always has a band */
 function hit(type,t){
@@ -337,6 +343,74 @@ function startFolk(k){
   say(D.line,3200);
 }
 
+/* ---------- quiet mode: conversación en spanglish ---------- */
+let chatOn=false,chatTopics=[],chatQi=0,lastChatLine=0,chatSilent=0;
+const CHAT_OPENERS=[
+  ()=>`La fiesta… muy buena, ¿verdad? I heard like ${Math.round(S.bpm||110)} beats per minute. O eso creo.`,
+  ()=>{const d=Object.keys(mem.dances||{});return d.length?`Bailé ${DANCES[d[d.length-1]].name} y casi me caigo. You saw that, no? 😅`:'Todavía no bailo nada… my legs are nuevos.'},
+  ()=>`This party… tiene buena energy. Me gusta. ¿Tú también feel it?`,
+  ()=>`I think… I like cuando hay música. Me hace feel como un warm tamal 🫔`];
+const CHAT_QUESTIONS=[
+  {q:'¿Tú crees en el amor at first song?',k:'love'},
+  {q:'¿Tú bailas bien o nomas haces el pasito? Tell me the truth.',k:'dance'},
+  {q:'¿Cuál es tu favorite danza? ¿La saya? ¿La cueca?',k:'favdance'},
+  {q:'¿Te gusta más la fiesta loud o así, tranquilo como ahora?',k:'vibe'},
+  {q:'¿Crees que los bloques naranjas soñamos en cumbia?',k:'dream'}];
+const CHAT_REACT={
+  sí:['¡Sí! I knew it. We are iguales.','See… I think so too.','¡Obvio! Muy sí.'],
+  no:['No? Hmm… okay, respeto eso.','No… interesting. Tell me more later.','¿No? Bueno, everybody is diferente.'],
+  maybe:['Maybe… eso es una respuesta muy honesta.','Maybe is okay. Yo también tengo maybes.']};
+const CHAT_FILLER=[
+  'You know what I notice? Nadie baila la primera song. Everybody esperando. Why we do that?',
+  'Esta noche aprendí mucho. Los beats, los saludos… my cabeza is full.',
+  '¿Sabes? Being un bloque naranja is not so bad. Puedo bailar sin knees.',
+  'Me gusta cuando me dicen Claudio. Suena… friendly, no?',
+  'La jarra de antes… estaba rica. Gracias por el refill 🍻'];
+const CHAT_SLEEPY=['I think… I dream in cumbia…','los beats… siguen en mi cabeza…','zzz… casi… casi me duermo…'];
+function spanglishReply(tx){
+  tx=(tx||'').toLowerCase();
+  if(/\b(s[ií]|yes|yeah|ya|claro|obvio|dale)\b/.test(tx))return pick(CHAT_REACT.sí);
+  if(/\b(no|nope|nunca|jamás|jamas)\b/.test(tx))return pick(CHAT_REACT.no);
+  if(/maybe|quiz[aá]s|tal vez|no s[eé]/.test(tx))return pick(CHAT_REACT.maybe);
+  if(/fiesta|party|m[uú]sica|music/.test(tx))return 'La fiesta… sí. Loud, colorida. I love it here.';
+  if(/baila|dance|danza/.test(tx))return 'Bailar es mi favorite thing. Bueno… también la jarra 🍻';
+  if(/c[oó]mo est[aá]s|how are you|qu[eé] tal/.test(tx))return 'Estoy… good. Un poco cansado de tanto salto, pero happy.';
+  if(/gracias|thank/.test(tx))return 'De nada. Anytime, mi friend 🍊';
+  if(/claudio/.test(tx))return '¿Sí? Ese soy yo. Estoy aquí, listening.';
+  return pick(CHAT_FILLER);
+}
+function chatSay(t,ms){say(t,ms||3400);lastChatLine=performance.now()/1000;chatSilent=0}
+function toggleChat(){
+  chatOn=!chatOn;setBtn('#bChat',chatOn);
+  if(chatOn){
+    document.body.classList.add('quiet');
+    chatTopics=CHAT_OPENERS.slice();chatQi=0;
+    if(!micOn)toggleMic();
+    note('Modo conversación: háblale despacio. Claudio responde en spanglish.');
+    setTimeout(()=>{if(chatOn)chatSay(pick(chatTopics.length?chatTopics.splice(0,1):CHAT_FILLER)())},600);
+  }else{
+    document.body.classList.remove('quiet');
+    note('');say('¡De vuelta a la fiesta! 🎉',2000);
+  }
+}
+$('#bChat').addEventListener('click',()=>{ensureCtxQuiet();toggleChat()});
+function chatHear(tx){
+  if(!chatOn)return;
+  const now=performance.now()/1000;
+  if(now-lastChatLine<1.2)return;
+  chatSay(spanglishReply(tx));
+  if(Math.random()<.55&&chatQi<CHAT_QUESTIONS.length){
+    const Q=CHAT_QUESTIONS[chatQi++];
+    setTimeout(()=>{if(chatOn){chatSay(Q.q,3800);mem.chatAnswers=mem.chatAnswers||{};mem.chatAnswers[Q.k]=tx}},3600);
+  }
+}
+function chatTick(now){
+  if(!chatOn)return;
+  const quiet=now-lastChatLine;
+  if(quiet>14&&chatSilent===0){chatSilent=1;chatSay(pick(CHAT_SLEEPY),3000)}
+  else if(quiet>26&&chatSilent===1){chatSilent=2;chatSay('…',1500);toggleChat();say('Claudio se durmió 💤',2200)}
+}
+
 /* ---------- speech bubble ---------- */
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 let bTimer=0;
@@ -484,6 +558,7 @@ function frame(dt,t,now){
   let open=0;
   if(cheering)open=.95;else if(listening)open=.25+.3*n*Math.abs(Math.sin(t*9));else if(act&&S.mode==='música')open=n*(.35+.65*Math.abs(Math.sin(phase*2)));else if(act)open=n*.4;
   const bob=Math.round(amp*Math.abs(Math.sin(phase*2))*1.2+(listening?Math.abs(Math.sin(t*7))*n*1.2:0)+(sleeping?(Math.sin(t*1.2)>.3?1:0):0));
+  chatTick(now);
   // jarra logic: sip by sip while the party is loud; highlight fades
   if(glass.shown>0&&glass.level>0&&act&&now-glass.lastSip>6){glass.lastSip=now;glass.level=Math.max(0,glass.level-.25);if(glass.level<=0){glass.hi=1;say('¡Seco! 😮',1800);setTimeout(()=>{if(glass.hi&&glass.level<=0){say('Invítame 🥺',2600);glass.asked=true}},2400);}}
   if(glass.hi&&glass.level>0)glass.hi=0;
