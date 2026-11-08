@@ -543,6 +543,7 @@ function drawFx(dt,t){
     cx.globalAlpha=.25+.75*v;cx.fillStyle=c;cx.shadowColor=c;cx.shadowBlur=6+26*v;
     cx.beginPath();cx.arc(x,y,5+5*v,0,6.283);cx.fill();}
   cx.shadowBlur=0;cx.globalAlpha=1;
+  drawOfrenda(t);
   // confetti
   for(let i=P.length-1;i>=0;i--){const p=P[i];p.l-=dt;if(p.l<=0||p.y>H+20){P.splice(i,1);continue}
     p.vy+=520*dt;p.vx*=1-1.2*dt;p.vy*=1-.9*dt;p.x+=p.vx*dt;p.y+=p.vy*dt+Math.sin(t*5+p.r)*18*dt;p.r+=p.vr*dt;
@@ -554,6 +555,59 @@ function drawFx(dt,t){
     if(s.l<=0&&s.pts.length<3||s.y>H+60){SP.splice(i,1);continue}
     cx.strokeStyle=s.c;cx.lineWidth=5;cx.lineCap='round';cx.globalAlpha=clamp(s.l+.4);cx.beginPath();s.pts.forEach((p,j)=>j?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.stroke();}
   cx.globalAlpha=1;
+}
+
+/* ---------- invitados calavera: la ofrenda entre velas ---------- */
+const SKULLS=[
+  {n:'Angel',hat:'hood',c:'#E8A54B'},
+  {n:'Betto',hat:'cap',c:'#F6B800'},
+  {n:'Ariel',hat:'tophat',c:'#3A3A4A'},
+  {n:'Alejandra',hat:'fedora',c:'#EDE3CB'},
+  {n:'Bertha',hat:'flowers',c:'#D81B77'},
+  {n:'Misael',hat:'visor',c:'#1E9B5A'},
+  {n:'P',hat:'hood',c:'#E8A54B'},
+  {n:'Yesica',hat:'flowers',c:'#B95438'},
+  {n:'Maria',hat:'hood',c:'#D96C4A'}
+];
+function drawSkull(g,x,y,k,hat,hc,t,ph){
+  const R=(dx,dy,w,h,c)=>{g.fillStyle=c;g.fillRect(Math.round(x+dx*k),Math.round(y+dy*k),Math.max(1,Math.round(w*k)),Math.max(1,Math.round(h*k)))};
+  const bob=Math.round(Math.sin(t*1.4+ph)*1);
+  // skull (bone)
+  R(-4,-8+bob,8,7,'#E9E2CE');R(-3,-9+bob,6,1,'#E9E2CE');           // cranium
+  R(-3,-1+bob,6,3,'#DDD4BC');                                        // jaw
+  R(-2.5,-5.5+bob,2,2,'#2B1B3D');R(.5,-5.5+bob,2,2,'#2B1B3D');       // eyes
+  R(-.5,-3+bob,1,1.5,'#2B1B3D');                                     // nose
+  for(let i=0;i<3;i++)R(-1.5+i,-.2+bob,.5,1,'#2B1B3D');              // teeth
+  R(-4,-8+bob,1,7,'#C9BFA2');                                        // shade
+  // headpieces
+  if(hat==='hood'){R(-5,-9+bob,10,3,hc);R(-5,-9+bob,2,9,hc);R(3,-9+bob,2,9,hc);R(-5,-1+bob,2,2,hc);R(3,-1+bob,2,2,hc)}
+  else if(hat==='cap'){R(-4,-10+bob,8,3,hc);R(-4,-10+bob,8,1,'#fff3d6');R(2,-8+bob,5,1,hc)}
+  else if(hat==='tophat'){R(-3,-14+bob,6,5,hc);R(-5,-9.5+bob,10,1.5,hc);R(-3,-10+bob,6,1,'#D81B77')}
+  else if(hat==='fedora'){R(-3.5,-11+bob,7,3,hc);R(-5.5,-8.5+bob,11,1.5,hc);R(-3.5,-9+bob,7,1,'#8a7a5a')}
+  else if(hat==='flowers'){for(let i=0;i<5;i++){const fx=-4+i*2,fy=-10+((i%2)?-1:0)+bob;R(fx,fy,2,2,i%2?'#F6B800':hc);R(fx+.5,fy+.5,1,1,'#fff3d6')}R(-4,-8.5+bob,8,1,'#1E9B5A')}
+  else if(hat==='visor'){R(-4.5,-9+bob,9,2,hc);R(-4.5,-9+bob,9,.8,'#fff3d6');R(-4,-7+bob,8,1,hc)}
+}
+function drawCandle(g,x,y,k,t,ph){
+  const R=(dx,dy,w,h,c)=>{g.fillStyle=c;g.fillRect(Math.round(x+dx*k),Math.round(y+dy*k),Math.max(1,Math.round(w*k)),Math.max(1,Math.round(h*k)))};
+  R(-1.5,0,3,6,'#F6E6C8');R(-1.5,0,3,1,'#fff8e8');R(-.3,-1,0.6,1,'#8a7a5a'); // wax + wick
+  const fl=Math.sin(t*9+ph)*.5+Math.sin(t*23+ph*2)*.3;                          // flicker
+  const fh=2.2+fl;
+  g.globalAlpha=.9;R(-.8,-1-fh,1.6,fh,'#F6B800');R(-.4,-1-fh*.6,.8,fh*.6,'#fff3d6');g.globalAlpha=1;
+  g.globalAlpha=.14+Math.max(0,fl)*.06;g.fillStyle='#F6B800';                   // halo
+  g.beginPath();g.arc(x,y-4*k,6*k,0,6.283);g.fill();g.globalAlpha=1;
+}
+function drawOfrenda(t){
+  const k=Math.max(1.6,Math.min(2.6,W/340));
+  const top=H*.16,step=Math.min(H*.17,120),m=Math.max(14,W*.045);
+  SKULLS.forEach((sk,i)=>{
+    const left=i%2===0,row=Math.floor(i/2);
+    const x=left?m+8*k:W-m-8*k, y=top+row*step;
+    if(y>H*.62)return;
+    drawCandle(cx,x+(left?-5:5)*k,y+2*k,k*.9,t,i*1.7);
+    drawSkull(cx,x,y,k,sk.hat,sk.c,t,i*.9);
+    cx.fillStyle='rgba(43,27,61,.55)';cx.font=`${Math.round(4.2*k)}px Fredoka,sans-serif`;cx.textAlign='center';
+    cx.fillText(sk.n,x,y+8.5*k);
+  });
 }
 
 /* ---------- Claudio: pixel sprite (64x84 grid, drawn every frame) ---------- */
@@ -626,6 +680,8 @@ function frame(dt,t,now){
   if(folk&&now>folkUntil){folk=null}
   const folkOn=!!folk;
   const sty=folk?folk.style:style();
+  if(move&&now>moveUntil)move=null;
+  const moveOn=!!move;
   if(act||S.tapE>.05||cheering||folkOn||moveOn)lastAct=now;
   const sleeping=now-lastAct>25;
   if(wasSleep&&!sleeping){say('¡Ah! ¡No estaba dormida!',2200)}wasSleep=sleeping;
@@ -633,8 +689,6 @@ function frame(dt,t,now){
   const bpm=S.bpm||100;phase+=dt*bpm/60*Math.PI;
   const sp=Math.sin(phase),ab=Math.abs(sp),cs=Math.cos(phase);
   const listening=S.mode==='voces'&&act&&!cheering;
-  if(move&&now>moveUntil)move=null;
-  const moveOn=!!move;
   let hop=amp*ab*[3,6,11][sty]*(folk?folk.hop:1)+(cheering?Math.abs(Math.sin(t*14))*4:0);
   const idle=Math.sin(t*.8);
   let sw=cs*amp*[2.4,2,1.2][sty]*(folk?folk.sway:1)+idle*(1-amp)*(sleeping?.3:.8);
