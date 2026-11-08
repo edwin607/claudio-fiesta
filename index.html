@@ -68,6 +68,8 @@ button.mag{background:var(--mag);color:#fff}
         <div><span>Picos / aplausos</span><b id="l-peaks">—</b></div>
         <div><span>Tempo favorito</span><b id="l-fav">—</b></div>
         <div><span>Visita</span><b id="l-visit">—</b></div>
+        <div><span>Persona</span><b id="l-person">—</b></div>
+        <div><span>De dónde</span><b id="l-origin">—</b></div>
         <small>Se ajusta solo: sus oídos se calibran al cuarto, y recuerda en este navegador.</small>
       </div>
     </details>
@@ -187,7 +189,7 @@ function startRecog(){
   }catch(_){recog=null;}
 }
 function stopRecog(){if(recog){const r=recog;recog=null;try{r.onend=null;r.stop()}catch(_){}}}
-window._claudio={hearName,hearSalud,hearSeco,hearInvitame,hearBaila,startFolk,glass,toggleChat,chatHear,spanglishReply,get folk(){return folk},get chatOn(){return chatOn}};
+window._claudio={hearName,hearSalud,hearSeco,hearInvitame,hearBaila,startFolk,glass,toggleChat,chatHear,spanglishReply,learnPerson,extractName,extractOrigin,mem,get folk(){return folk},get chatOn(){return chatOn}};
 
 /* generated música: cumbia/huayño-ish loop, so the room always has a band */
 function hit(type,t){
@@ -303,6 +305,8 @@ function updPanel(){
   $('#l-peaks').textContent=`${mem.peaks} / ${mem.claps}`;
   let fav='—',mx=0;for(const k in mem.hist)if(mem.hist[k]>mx){mx=mem.hist[k];fav=k+' BPM'}
   $('#l-fav').textContent=fav; $('#l-visit').textContent='#'+mem.visits;
+  $('#l-person').textContent=mem.person.name?mem.person.name+(mem.person.voice?' 🎙️'+mem.person.voice.reg:''):'—';
+  $('#l-origin').textContent=mem.person.origin?capName(mem.person.origin):'—';
   $('#status').textContent=S.active?({tranquilo:'Tranquilo',voces:'Escucho voces',música:'¡Hay música!',aplausos:'¡Aplausos!',ruido:'Hay ruido'}[S.mode]+(S.src?' '+S.src:'')):(analyser&&(micOn||mus.on)?'Esperando ruido…':'Claudio llegó a la fiesta');
   $('#dot').classList.toggle('on',!!(analyser&&(micOn||mus.on)));
 }
@@ -344,13 +348,50 @@ function startFolk(k){
 }
 
 /* ---------- quiet mode: conversación en spanglish ---------- */
-let chatOn=false,chatTopics=[],chatQi=0,lastChatLine=0,chatSilent=0;
+let chatOn=false,chatTopics=[],chatQi=0,lastChatLine=0,chatSilent=0,awaitField=null;
+mem.people=mem.people||{};mem.person=mem.person||{name:null,origin:null,voice:null};
+const PLACES=['la paz','paceño','paceña','cochabamba','santa cruz','oruro','potosí','potosi','sucre','tarija','beni','pando','el alto','yungas','bolivia','méxico','mexico','perú','peru','argentina','chile','colombia','españa','spain','new york','nyc','brooklyn','queens','estados unidos','usa','brasil','venezuela','ecuador','paraguay','uruguay'];
+function capName(w){return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()}
+function extractName(tx){
+  let m=tx.match(/(?:me llamo|mi nombre es|soy|llámame|llamame|call me|my name is|i am|i'm|im)\s+([a-záéíóúñü]+)/i);
+  if(m){const w=m[1].toLowerCase();if(!['un','una','el','la','de','del','muy','tan','aquí','aqui','bien','mal','feliz','contento','cansado','tu','su'].includes(w))return capName(w)}
+  return null}
+function extractOrigin(tx){
+  let m=tx.match(/(?:soy de|vengo de|vivo en|i'm from|im from|i am from|from)\s+([a-záéíóúñü ]{2,24})/i);
+  if(m)return m[1].trim();
+  for(const pl of PLACES)if(tx.includes(pl))return pl;
+  return null}
+function originReaction(o){
+  const t=o.toLowerCase();
+  if(/la paz|paceñ|el alto/.test(t))return '¡La Paz! ¡Paceño! We are vecinos then. La ciudad que toca el cielo 🏔️';
+  if(/cochabamba/.test(t))return '¡Cochabamba! La ciudad de la eterna primavera. Y la mejor comida, dicen 😋';
+  if(/santa cruz/.test(t))return '¡Santa Cruz! Tierra caliente, cambas y buena música 🌴';
+  if(/oruro/.test(t))return '¡Oruro! ¡La capital del folklore! La diablada es de ahí 👹';
+  if(/potos[ií]/.test(t))return '¡Potosí! El cerro rico… y el tinku fuerte 🥊';
+  if(/sucre/.test(t))return '¡Sucre! La capital bonita, blanquita ella 🤍';
+  if(/tarija/.test(t))return '¡Tarija! Vinos y chapacura… qué elegancia 🍷';
+  if(/bolivia/.test(t))return '¡Bolivia! Mi tierra querida. Somos del mismo lugar 🇧🇴';
+  if(/new york|nyc|brooklyn|queens/.test(t))return '¡New York! Wow, big city. You came far para la fiesta 🗽';
+  if(/m[eé]xico/.test(t))return '¡México! Tacos y mariachi… I like your style 🌮';
+  if(/per[uú]/.test(t))return '¡Perú! Vecinos del lago Titicaca 🌊';
+  return `¡${capName(o)}! No lo conozco… but it sounds bonito. Tell me more sometime.`;
+}
+function learnPerson(tx){
+  let learned=null;
+  const nm=extractName(tx);
+  if(nm&&mem.person.name!==nm){mem.person.name=nm;mem.people[nm]=mem.people[nm]||{visits:0};mem.people[nm].visits++;learned='name'}
+  const og=extractOrigin(tx);
+  if(og&&mem.person.origin!==og){mem.person.origin=og;learned='origin'}
+  return learned;
+}
 const CHAT_OPENERS=[
   ()=>`La fiesta… muy buena, ¿verdad? I heard like ${Math.round(S.bpm||110)} beats per minute. O eso creo.`,
   ()=>{const d=Object.keys(mem.dances||{});return d.length?`Bailé ${DANCES[d[d.length-1]].name} y casi me caigo. You saw that, no? 😅`:'Todavía no bailo nada… my legs are nuevos.'},
   ()=>`This party… tiene buena energy. Me gusta. ¿Tú también feel it?`,
   ()=>`I think… I like cuando hay música. Me hace feel como un warm tamal 🫔`];
 const CHAT_QUESTIONS=[
+  {q:'Oye… ¿cómo te llamas? I want to know your name.',k:'name',field:'name'},
+  {q:'¿Y de dónde eres? ¿De La Paz o de somewhere else?',k:'origin',field:'origin'},
   {q:'¿Tú crees en el amor at first song?',k:'love'},
   {q:'¿Tú bailas bien o nomas haces el pasito? Tell me the truth.',k:'dance'},
   {q:'¿Cuál es tu favorite danza? ¿La saya? ¿La cueca?',k:'favdance'},
@@ -369,12 +410,13 @@ const CHAT_FILLER=[
 const CHAT_SLEEPY=['I think… I dream in cumbia…','los beats… siguen en mi cabeza…','zzz… casi… casi me duermo…'];
 function spanglishReply(tx){
   tx=(tx||'').toLowerCase();
-  if(/\b(s[ií]|yes|yeah|ya|claro|obvio|dale)\b/.test(tx))return pick(CHAT_REACT.sí);
+  const who=mem.person.name?`, ${mem.person.name}`:'';
+  if(/\b(s[ií]|yes|yeah|ya|claro|obvio|dale)\b/.test(tx))return pick(CHAT_REACT.sí)+who;
   if(/\b(no|nope|nunca|jamás|jamas)\b/.test(tx))return pick(CHAT_REACT.no);
   if(/maybe|quiz[aá]s|tal vez|no s[eé]/.test(tx))return pick(CHAT_REACT.maybe);
   if(/fiesta|party|m[uú]sica|music/.test(tx))return 'La fiesta… sí. Loud, colorida. I love it here.';
   if(/baila|dance|danza/.test(tx))return 'Bailar es mi favorite thing. Bueno… también la jarra 🍻';
-  if(/c[oó]mo est[aá]s|how are you|qu[eé] tal/.test(tx))return 'Estoy… good. Un poco cansado de tanto salto, pero happy.';
+  if(/c[oó]mo est[aá]s|how are you|qu[eé] tal/.test(tx))return 'Estoy… good. Un poco cansado de tanto salto, pero happy.'+who;
   if(/gracias|thank/.test(tx))return 'De nada. Anytime, mi friend 🍊';
   if(/claudio/.test(tx))return '¿Sí? Ese soy yo. Estoy aquí, listening.';
   return pick(CHAT_FILLER);
@@ -387,7 +429,10 @@ function toggleChat(){
     chatTopics=CHAT_OPENERS.slice();chatQi=0;
     if(!micOn)toggleMic();
     note('Modo conversación: háblale despacio. Claudio responde en spanglish.');
-    setTimeout(()=>{if(chatOn)chatSay(pick(chatTopics.length?chatTopics.splice(0,1):CHAT_FILLER)())},600);
+    setTimeout(()=>{if(chatOn){
+      if(mem.person.name){const o=mem.person.origin?` de ${mem.person.origin}`:'';chatSay(`¡${mem.person.name}${o}! You came back. I remembered you 🍊`,3600)}
+      else chatSay(pick(chatTopics.length?chatTopics.splice(0,1):CHAT_FILLER)());
+    }},600);
   }else{
     document.body.classList.remove('quiet');
     note('');say('¡De vuelta a la fiesta! 🎉',2000);
@@ -397,18 +442,49 @@ $('#bChat').addEventListener('click',()=>{ensureCtxQuiet();toggleChat()});
 function chatHear(tx){
   if(!chatOn)return;
   const now=performance.now()/1000;
-  if(now-lastChatLine<1.2)return;
-  chatSay(spanglishReply(tx));
-  if(Math.random()<.55&&chatQi<CHAT_QUESTIONS.length){
-    const Q=CHAT_QUESTIONS[chatQi++];
-    setTimeout(()=>{if(chatOn){chatSay(Q.q,3800);mem.chatAnswers=mem.chatAnswers||{};mem.chatAnswers[Q.k]=tx}},3600);
-  }
+  if(now-lastChatLine<.4)return;
+  const learned=learnPerson(tx);
+  if(learned==='name'){chatSay(`¡${mem.person.name}! Qué nombre tan bonito. I will remember you, ${mem.person.name} 🍊`,3600)}
+  else if(learned==='origin'){chatSay(originReaction(mem.person.origin),3800)}
+  else chatSay(spanglishReply(tx));
+  mem.chatAnswers=mem.chatAnswers||{};
+  if(awaitField){mem.chatAnswers[awaitField]=tx;awaitField=null}
+  // curiosity: ask name first if unknown, then origin, then the rest
+  let Q=null;
+  if(!mem.person.name)Q=CHAT_QUESTIONS[0];
+  else if(!mem.person.origin)Q=CHAT_QUESTIONS[1];
+  else if(Math.random()<.55&&chatQi<CHAT_QUESTIONS.length)Q=CHAT_QUESTIONS[Math.max(2,chatQi++)];
+  if(Q)setTimeout(()=>{if(chatOn){chatSay(Q.q,3800);if(Q.field)awaitField=Q.field;mem.chatAnswers[Q.k]=mem.chatAnswers[Q.k]||''}},3800);
 }
 function chatTick(now){
   if(!chatOn)return;
   const quiet=now-lastChatLine;
   if(quiet>14&&chatSilent===0){chatSilent=1;chatSay(pick(CHAT_SLEEPY),3000)}
   else if(quiet>26&&chatSilent===1){chatSilent=2;chatSay('…',1500);toggleChat();say('Claudio se durmió 💤',2200)}
+}
+
+/* ---------- voice profile: cheap spectral fingerprint ---------- */
+const voice={sum:0,sumSq:0,n:0,pitchSum:0,pitchN:0};
+function voiceSample(){
+  if(!analyser||!micOn)return;
+  analyser.getByteTimeDomainData(tdom);
+  let zc=0,sum=0,peak=0;
+  for(let i=1;i<tdom.length;i++){const v=(tdom[i]-128)/128;sum+=v*v;if(Math.abs(v)>peak)peak=Math.abs(v);if((tdom[i-1]-128)*(tdom[i]-128)<0)zc++}
+  const rms=Math.sqrt(sum/tdom.length);
+  if(rms>.02&&peak>.05){ // someone is speaking
+    const pitch=zc*ctx.sampleRate/(2*tdom.length); // rough zero-crossing pitch Hz
+    if(pitch>60&&pitch<500){voice.pitchSum+=pitch;voice.pitchN++}
+    voice.sum+=rms;voice.sumSq+=rms*rms;voice.n++;
+    if(voice.n===80){ // after ~1.5s of speech, lock a profile
+      const avgPitch=Math.round(voice.pitchSum/Math.max(1,voice.pitchN));
+      const reg=avgPitch<140?'grave':avgPitch<220?'media':'aguda';
+      const cur=mem.person.voice;
+      if(!cur){mem.person.voice={pitch:avgPitch,reg};if(chatOn)chatSay(`Tu voz… ${reg}. I like it. Now I know it's you when you talk 🎙️`,3600)}
+      else if(Math.abs(cur.pitch-avgPitch)<25){if(chatOn)chatSay(pick([`That voice… I know you. You're the same person as antes 🎙️`,`Hmm, tu voz me suena. Same voice as before.`]),3400)}
+      else{if(chatOn)chatSay('Wait… tu voz sounds diferente. ¿Eres otra persona? Tell me your name again.',3800);mem.person.voice={pitch:avgPitch,reg}}
+      voice.n=0;voice.sum=0;voice.sumSq=0;voice.pitchSum=0;voice.pitchN=0;
+    }
+  }
 }
 
 /* ---------- speech bubble ---------- */
@@ -558,7 +634,7 @@ function frame(dt,t,now){
   let open=0;
   if(cheering)open=.95;else if(listening)open=.25+.3*n*Math.abs(Math.sin(t*9));else if(act&&S.mode==='música')open=n*(.35+.65*Math.abs(Math.sin(phase*2)));else if(act)open=n*.4;
   const bob=Math.round(amp*Math.abs(Math.sin(phase*2))*1.2+(listening?Math.abs(Math.sin(t*7))*n*1.2:0)+(sleeping?(Math.sin(t*1.2)>.3?1:0):0));
-  chatTick(now);
+  chatTick(now);voiceSample();
   // jarra logic: sip by sip while the party is loud; highlight fades
   if(glass.shown>0&&glass.level>0&&act&&now-glass.lastSip>6){glass.lastSip=now;glass.level=Math.max(0,glass.level-.25);if(glass.level<=0){glass.hi=1;say('¡Seco! 😮',1800);setTimeout(()=>{if(glass.hi&&glass.level<=0){say('Invítame 🥺',2600);glass.asked=true}},2400);}}
   if(glass.hi&&glass.level>0)glass.hi=0;
