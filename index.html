@@ -167,6 +167,7 @@ function startRecog(){
       for(let i=e.resultIndex;i<e.results.length;i++){
         for(let j=0;j<e.results[i].length;j++){
           const tx=(e.results[i][j].transcript||'').toLowerCase();
+          if(/baila|bailar|bailaremos|baile|danza|dance|saya|morenada|caporal|cueca|tinku|diablada|kullawada|cullawada|tobas/.test(tx)){hearBaila(tx);return;}
           if(/salud|cheers|chin ?chin/.test(tx)){hearSalud();return;}
           if(/seco|seca|dry|empty|vac[ií]o|vac[ií]a/.test(tx)){hearSeco();return;}
           if(/inv[ií]tame|inv[ií]tale|inv[ií]tale|invite|invita|s[ií]rvele|s[ií]rveme|otra|another/.test(tx)){hearInvitame();return;}
@@ -180,7 +181,7 @@ function startRecog(){
   }catch(_){recog=null;}
 }
 function stopRecog(){if(recog){const r=recog;recog=null;try{r.onend=null;r.stop()}catch(_){}}}
-window._claudio={hearName,hearSalud,hearSeco,hearInvitame,glass};
+window._claudio={hearName,hearSalud,hearSeco,hearInvitame,hearBaila,startFolk,glass,get folk(){return folk}};
 
 /* generated música: cumbia/huayño-ish loop, so the room always has a band */
 function hit(type,t){
@@ -291,7 +292,7 @@ function tick1s(now){ // slow learning, once a second
 function updPanel(){
   $('#l-mode').textContent=S.mode+(S.src?' '+S.src:'');
   $('#l-bpm').textContent=S.bpm?`~${Math.round(S.bpm)} BPM`:'aprendiendo…';
-  $('#l-dance').textContent=S.bpm?['balanceo','cumbia','saya'][style()]:'—';
+  $('#l-dance').textContent=folk?folk.name:(S.bpm?['balanceo','cumbia','saya'][style()]:'—');
   $('#l-floor').textContent=analyser?Math.round(S.floor*1000)/10+'%':'sin oído aún';
   $('#l-peaks').textContent=`${mem.peaks} / ${mem.claps}`;
   let fav='—',mx=0;for(const k in mem.hist)if(mem.hist[k]>mx){mx=mem.hist[k];fav=k+' BPM'}
@@ -300,6 +301,41 @@ function updPanel(){
   $('#dot').classList.toggle('on',!!(analyser&&(micOn||mus.on)));
 }
 const style=()=>!S.bpm?1:S.bpm<95?0:S.bpm<136?1:2;
+
+/* ---------- danzas folklóricas: Claudio conoce su repertorio ---------- */
+const DANCES={
+  saya:{name:'Saya Afroboliviana',bpm:112,style:2,hop:1.4,sway:.6,arms:'alto',line:'¡La saya! ¡Como en Los Yungas! 🥁'},
+  morenada:{name:'Morenada',bpm:72,style:0,hop:.5,sway:1.6,arms:'bajo',line:'¡Morenada! Despacio, con paso firme, como en el Gran Poder ✨'},
+  caporales:{name:'Caporales',bpm:128,style:2,hop:1.8,sway:.8,arms:'latigo',line:'¡Caporales! ¡Salto y zapateo! 💥'},
+  cueca:{name:'Cueca Boliviana',bpm:104,style:1,hop:.8,sway:1.2,arms:'panuelo',line:'¡Cueca! ¡Pañuelo en alto! 🇧🇴'},
+  tinku:{name:'Tinku',bpm:120,style:2,hop:1.2,sway:1.4,arms:'guardia',line:'¡Tinku! ¡Con fuerza, del norte de Potosí! 🥊'},
+  diablada:{name:'Diablada',bpm:118,style:2,hop:1.5,sway:1.0,arms:'garra',line:'¡Diablada! ¡La de Oruro! 👹'},
+  kullawada:{name:'Kullawada',bpm:96,style:1,hop:.7,sway:1.5,arms:'hilado',line:'¡Kullawada! Hilando como los tejedores 🧵'},
+  tobas:{name:'Tobas',bpm:124,style:2,hop:1.7,sway:.7,arms:'lanza',line:'¡Tobas! ¡Del oriente, con plumas! 🪶'}
+};
+let folk=null,folkUntil=0;
+function danceKeys(){return Object.keys(DANCES)}
+function hearBaila(tx){
+  let d=null;
+  for(const k of danceKeys()){if(tx.includes(k)){d=k;break}}
+  if(!d&&/saya|yungas/.test(tx))d='saya';
+  if(!d&&/morenada|gran poder/.test(tx))d='morenada';
+  if(!d&&/caporal/.test(tx))d='caporales';
+  if(!d&&/cueca|pañuelo|panuelo/.test(tx))d='cueca';
+  if(!d&&/tinku/.test(tx))d='tinku';
+  if(!d&&/diablada|oruro|diablo/.test(tx))d='diablada';
+  if(!d&&/kullawada|cullawada|tejedor/.test(tx))d='kullawada';
+  if(!d&&/tobas/.test(tx))d='tobas';
+  if(!d)d=pick(danceKeys());
+  startFolk(d);
+}
+function startFolk(k){
+  const D=DANCES[k];folk=D;folkUntil=performance.now()/1000+14;
+  mem.dances=(mem.dances||{});mem.dances[k]=(mem.dances[k]||0)+1;
+  S.bpm=D.bpm;S.tapE=1;cheer(1.6);
+  confetti(W/2,H*.4,26,Math.PI,400,false);
+  say(D.line,3200);
+}
 
 /* ---------- speech bubble ---------- */
 const pick=a=>a[Math.floor(Math.random()*a.length)];
@@ -407,22 +443,33 @@ function onBeat(now){
 }
 const glowEl=document.getElementById('glow');
 function frame(dt,t,now){
-  const n=S.n,sty=style(),act=S.active,cheering=now<cheerUntil;
-  if(act||S.tapE>.05||cheering)lastAct=now;
+  const n=S.n,act=S.active,cheering=now<cheerUntil;
+  if(folk&&now>folkUntil){folk=null}
+  const folkOn=!!folk;
+  const sty=folk?folk.style:style();
+  if(act||S.tapE>.05||cheering||folkOn)lastAct=now;
   const sleeping=now-lastAct>25;
   if(wasSleep&&!sleeping){say('¡Ah! ¡No estaba dormida!',2200)}wasSleep=sleeping;
   amp=lerp(amp,act?.3+.7*n:0,Math.min(1,dt*6))*(RM?.5:1)||0;
   const bpm=S.bpm||100;phase+=dt*bpm/60*Math.PI;
   const sp=Math.sin(phase),ab=Math.abs(sp),cs=Math.cos(phase);
   const listening=S.mode==='voces'&&act&&!cheering;
-  const hop=amp*ab*[3,6,11][sty]+(cheering?Math.abs(Math.sin(t*14))*4:0);
+  const hop=amp*ab*[3,6,11][sty]*(folk?folk.hop:1)+(cheering?Math.abs(Math.sin(t*14))*4:0);
   const idle=Math.sin(t*.8);
-  const sw=cs*amp*[2.4,2,1.2][sty]+idle*(1-amp)*(sleeping?.3:.8);
+  const sw=cs*amp*[2.4,2,1.2][sty]*(folk?folk.sway:1)+idle*(1-amp)*(sleeping?.3:.8);
   const sq=(amp>.3&&ab<.25)?1:0;
   hatV+=((-sw*1.2-hatA)*90-hatV*9)*dt;hatA+=hatV*dt;
   flapV+=((sw*2-hop*.15-flapA)*70-flapV*6)*dt;flapA+=flapV*dt;
   let oL,oR;
   if(cheering){oL=oR=160+Math.sin(t*22)*10}
+  else if(folk&&folk.arms==='alto'){oL=oR=120+40*amp*sp}
+  else if(folk&&folk.arms==='bajo'){oL=15+10*amp*sp;oR=15-10*amp*sp}
+  else if(folk&&folk.arms==='latigo'){oL=90+70*amp*Math.sin(phase*2);oR=90-70*amp*Math.sin(phase*2)}
+  else if(folk&&folk.arms==='panuelo'){oR=150+20*Math.sin(t*6);oL=30+20*amp*sp}
+  else if(folk&&folk.arms==='guardia'){oL=60+30*amp*ab;oR=60+30*amp*Math.abs(cs)}
+  else if(folk&&folk.arms==='garra'){oL=100+50*amp*Math.sin(phase*3);oR=100-50*amp*Math.sin(phase*3)}
+  else if(folk&&folk.arms==='hilado'){oL=45+35*Math.sin(t*4);oR=45+35*Math.cos(t*4)}
+  else if(folk&&folk.arms==='lanza'){oR=140+30*amp*sp;oL=25}
   else if(sty===0){oL=20+25*amp*sp;oR=20-25*amp*sp}
   else if(sty===1){oL=45+50*amp*sp;oR=45-50*amp*sp}
   else{oL=oR=110+55*amp*ab}
