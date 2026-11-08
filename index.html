@@ -190,7 +190,6 @@ function startRecog(){
   }catch(_){recog=null;}
 }
 function stopRecog(){if(recog){const r=recog;recog=null;try{r.onend=null;r.stop()}catch(_){}}}
-window._claudio={hearName,hearSalud,hearSeco,hearInvitame,hearBaila,startFolk,hearMove,glass,toggleChat,chatHear,spanglishReply,learnPerson,extractName,extractOrigin,mem,get folk(){return folk},get chatOn(){return chatOn},get move(){return move}};
 
 /* generated música: cumbia/huayño-ish loop, so the room always has a band */
 function hit(type,t){
@@ -520,6 +519,75 @@ const pick=a=>a[Math.floor(Math.random()*a.length)];
 let bTimer=0;
 function say(t,ms=2900){const b=$('#bubble');b.textContent=t;b.classList.add('show');clearTimeout(bTimer);bTimer=setTimeout(()=>b.classList.remove('show'),ms)}
 
+/* ---------- invitados calavera: la ofrenda entre velas ---------- */
+const SKULLS=[
+  {n:'Angel',hat:'hood',c:'#E8A54B'},
+  {n:'Betto',hat:'cap',c:'#F6B800'},
+  {n:'Ariel',hat:'tophat',c:'#3A3A4A'},
+  {n:'Alejandra',hat:'fedora',c:'#EDE3CB'},
+  {n:'Bertha',hat:'flowers',c:'#D81B77'},
+  {n:'Misael',hat:'visor',c:'#1E9B5A'},
+  {n:'P',hat:'hood',c:'#E8A54B'},
+  {n:'Yesica',hat:'flowers',c:'#B95438'},
+  {n:'Maria',hat:'hood',c:'#D96C4A'}
+];
+SKULLS.forEach((sk,i)=>{sk.joined=false;sk.jx=0;sk.jy=0;sk.homeX=0;sk.homeY=0;sk.ph=i*.9;sk.slot=i});
+let skullHit=[];  // tap targets, rebuilt each draw
+function drawSkull(g,x,y,k,hat,hc,t,ph){
+  const R=(dx,dy,w,h,c)=>{g.fillStyle=c;g.fillRect(Math.round(x+dx*k),Math.round(y+dy*k),Math.max(1,Math.round(w*k)),Math.max(1,Math.round(h*k)))};
+  const bob=Math.round(Math.sin(t*1.4+ph)*1);
+  // skull (bone)
+  R(-4,-8+bob,8,7,'#E9E2CE');R(-3,-9+bob,6,1,'#E9E2CE');           // cranium
+  R(-3,-1+bob,6,3,'#DDD4BC');                                        // jaw
+  R(-2.5,-5.5+bob,2,2,'#2B1B3D');R(.5,-5.5+bob,2,2,'#2B1B3D');       // eyes
+  R(-.5,-3+bob,1,1.5,'#2B1B3D');                                     // nose
+  for(let i=0;i<3;i++)R(-1.5+i,-.2+bob,.5,1,'#2B1B3D');              // teeth
+  R(-4,-8+bob,1,7,'#C9BFA2');                                        // shade
+  // headpieces
+  if(hat==='hood'){R(-5,-9+bob,10,3,hc);R(-5,-9+bob,2,9,hc);R(3,-9+bob,2,9,hc);R(-5,-1+bob,2,2,hc);R(3,-1+bob,2,2,hc)}
+  else if(hat==='cap'){R(-4,-10+bob,8,3,hc);R(-4,-10+bob,8,1,'#fff3d6');R(2,-8+bob,5,1,hc)}
+  else if(hat==='tophat'){R(-3,-14+bob,6,5,hc);R(-5,-9.5+bob,10,1.5,hc);R(-3,-10+bob,6,1,'#D81B77')}
+  else if(hat==='fedora'){R(-3.5,-11+bob,7,3,hc);R(-5.5,-8.5+bob,11,1.5,hc);R(-3.5,-9+bob,7,1,'#8a7a5a')}
+  else if(hat==='flowers'){for(let i=0;i<5;i++){const fx=-4+i*2,fy=-10+((i%2)?-1:0)+bob;R(fx,fy,2,2,i%2?'#F6B800':hc);R(fx+.5,fy+.5,1,1,'#fff3d6')}R(-4,-8.5+bob,8,1,'#1E9B5A')}
+  else if(hat==='visor'){R(-4.5,-9+bob,9,2,hc);R(-4.5,-9+bob,9,.8,'#fff3d6');R(-4,-7+bob,8,1,hc)}
+}
+function drawCandle(g,x,y,k,t,ph){
+  const R=(dx,dy,w,h,c)=>{g.fillStyle=c;g.fillRect(Math.round(x+dx*k),Math.round(y+dy*k),Math.max(1,Math.round(w*k)),Math.max(1,Math.round(h*k)))};
+  R(-1.5,0,3,6,'#F6E6C8');R(-1.5,0,3,1,'#fff8e8');R(-.3,-1,0.6,1,'#8a7a5a'); // wax + wick
+  const fl=Math.sin(t*9+ph)*.5+Math.sin(t*23+ph*2)*.3;                          // flicker
+  const fh=2.2+fl;
+  g.globalAlpha=.9;R(-.8,-1-fh,1.6,fh,'#F6B800');R(-.4,-1-fh*.6,.8,fh*.6,'#fff3d6');g.globalAlpha=1;
+  g.globalAlpha=.14+Math.max(0,fl)*.06;g.fillStyle='#F6B800';                   // halo
+  g.beginPath();g.arc(x,y-4*k,6*k,0,6.283);g.fill();g.globalAlpha=1;
+}
+function drawOfrenda(t){
+  const k=Math.max(2.6,Math.min(4.2,W/220));           // bigger skulls
+  const top=H*.15,step=Math.min(H*.19,170),m=Math.max(16,W*.05);
+  skullHit=[];
+  SKULLS.forEach((sk,i)=>{
+    const left=i%2===0,row=Math.floor(i/2);
+    const hx=left?m+8*k:W-m-8*k, hy=top+row*step;
+    sk.homeX=hx;sk.homeY=hy;
+    if(sk.joined){
+      // dance beside Claudio: orbit the stage center-bottom
+      const cxp=W/2,cyp=H*.72;
+      const ang=t*.9+sk.slot*.7, rad=Math.min(W,H)*.24+((sk.slot%3)-1)*14;
+      const tx=cxp+Math.cos(ang)*rad, ty=cyp+Math.sin(ang)*rad*.35-10;
+      sk.jx=sk.jx?sk.jx+(tx-sk.jx)*.06:tx; sk.jy=sk.jy?sk.jy+(ty-sk.jy)*.06:ty;
+      drawSkull(cx,sk.jx,sk.jy,k*.9,sk.hat,sk.c,t*2.2,sk.ph);   // livelier bob
+      cx.fillStyle='rgba(43,27,61,.6)';cx.font=`${Math.round(3.6*k)}px Fredoka,sans-serif`;cx.textAlign='center';
+      cx.fillText(sk.n,sk.jx,sk.jy+8*k);
+    }else{
+      if(hy>H*.62)return;
+      drawCandle(cx,hx+(left?-5:5)*k,hy+2*k,k*.9,t,i*1.7);
+      drawSkull(cx,hx,hy,k,sk.hat,sk.c,t,sk.ph);
+      cx.fillStyle='rgba(43,27,61,.55)';cx.font=`${Math.round(4.2*k)}px Fredoka,sans-serif`;cx.textAlign='center';
+      cx.fillText(sk.n,hx,hy+8.5*k);
+      skullHit.push({x:hx,y:hy,r:9*k,sk});
+    }
+  });
+}
+
 /* ---------- confetti (mixtura) + serpentinas + string lights ---------- */
 const cv=$('#fx'),cx=cv.getContext('2d');let W=0,H=0,DPR=1;
 const P=[],SP=[];
@@ -555,59 +623,6 @@ function drawFx(dt,t){
     if(s.l<=0&&s.pts.length<3||s.y>H+60){SP.splice(i,1);continue}
     cx.strokeStyle=s.c;cx.lineWidth=5;cx.lineCap='round';cx.globalAlpha=clamp(s.l+.4);cx.beginPath();s.pts.forEach((p,j)=>j?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1]));cx.stroke();}
   cx.globalAlpha=1;
-}
-
-/* ---------- invitados calavera: la ofrenda entre velas ---------- */
-const SKULLS=[
-  {n:'Angel',hat:'hood',c:'#E8A54B'},
-  {n:'Betto',hat:'cap',c:'#F6B800'},
-  {n:'Ariel',hat:'tophat',c:'#3A3A4A'},
-  {n:'Alejandra',hat:'fedora',c:'#EDE3CB'},
-  {n:'Bertha',hat:'flowers',c:'#D81B77'},
-  {n:'Misael',hat:'visor',c:'#1E9B5A'},
-  {n:'P',hat:'hood',c:'#E8A54B'},
-  {n:'Yesica',hat:'flowers',c:'#B95438'},
-  {n:'Maria',hat:'hood',c:'#D96C4A'}
-];
-function drawSkull(g,x,y,k,hat,hc,t,ph){
-  const R=(dx,dy,w,h,c)=>{g.fillStyle=c;g.fillRect(Math.round(x+dx*k),Math.round(y+dy*k),Math.max(1,Math.round(w*k)),Math.max(1,Math.round(h*k)))};
-  const bob=Math.round(Math.sin(t*1.4+ph)*1);
-  // skull (bone)
-  R(-4,-8+bob,8,7,'#E9E2CE');R(-3,-9+bob,6,1,'#E9E2CE');           // cranium
-  R(-3,-1+bob,6,3,'#DDD4BC');                                        // jaw
-  R(-2.5,-5.5+bob,2,2,'#2B1B3D');R(.5,-5.5+bob,2,2,'#2B1B3D');       // eyes
-  R(-.5,-3+bob,1,1.5,'#2B1B3D');                                     // nose
-  for(let i=0;i<3;i++)R(-1.5+i,-.2+bob,.5,1,'#2B1B3D');              // teeth
-  R(-4,-8+bob,1,7,'#C9BFA2');                                        // shade
-  // headpieces
-  if(hat==='hood'){R(-5,-9+bob,10,3,hc);R(-5,-9+bob,2,9,hc);R(3,-9+bob,2,9,hc);R(-5,-1+bob,2,2,hc);R(3,-1+bob,2,2,hc)}
-  else if(hat==='cap'){R(-4,-10+bob,8,3,hc);R(-4,-10+bob,8,1,'#fff3d6');R(2,-8+bob,5,1,hc)}
-  else if(hat==='tophat'){R(-3,-14+bob,6,5,hc);R(-5,-9.5+bob,10,1.5,hc);R(-3,-10+bob,6,1,'#D81B77')}
-  else if(hat==='fedora'){R(-3.5,-11+bob,7,3,hc);R(-5.5,-8.5+bob,11,1.5,hc);R(-3.5,-9+bob,7,1,'#8a7a5a')}
-  else if(hat==='flowers'){for(let i=0;i<5;i++){const fx=-4+i*2,fy=-10+((i%2)?-1:0)+bob;R(fx,fy,2,2,i%2?'#F6B800':hc);R(fx+.5,fy+.5,1,1,'#fff3d6')}R(-4,-8.5+bob,8,1,'#1E9B5A')}
-  else if(hat==='visor'){R(-4.5,-9+bob,9,2,hc);R(-4.5,-9+bob,9,.8,'#fff3d6');R(-4,-7+bob,8,1,hc)}
-}
-function drawCandle(g,x,y,k,t,ph){
-  const R=(dx,dy,w,h,c)=>{g.fillStyle=c;g.fillRect(Math.round(x+dx*k),Math.round(y+dy*k),Math.max(1,Math.round(w*k)),Math.max(1,Math.round(h*k)))};
-  R(-1.5,0,3,6,'#F6E6C8');R(-1.5,0,3,1,'#fff8e8');R(-.3,-1,0.6,1,'#8a7a5a'); // wax + wick
-  const fl=Math.sin(t*9+ph)*.5+Math.sin(t*23+ph*2)*.3;                          // flicker
-  const fh=2.2+fl;
-  g.globalAlpha=.9;R(-.8,-1-fh,1.6,fh,'#F6B800');R(-.4,-1-fh*.6,.8,fh*.6,'#fff3d6');g.globalAlpha=1;
-  g.globalAlpha=.14+Math.max(0,fl)*.06;g.fillStyle='#F6B800';                   // halo
-  g.beginPath();g.arc(x,y-4*k,6*k,0,6.283);g.fill();g.globalAlpha=1;
-}
-function drawOfrenda(t){
-  const k=Math.max(1.6,Math.min(2.6,W/340));
-  const top=H*.16,step=Math.min(H*.17,120),m=Math.max(14,W*.045);
-  SKULLS.forEach((sk,i)=>{
-    const left=i%2===0,row=Math.floor(i/2);
-    const x=left?m+8*k:W-m-8*k, y=top+row*step;
-    if(y>H*.62)return;
-    drawCandle(cx,x+(left?-5:5)*k,y+2*k,k*.9,t,i*1.7);
-    drawSkull(cx,x,y,k,sk.hat,sk.c,t,i*.9);
-    cx.fillStyle='rgba(43,27,61,.55)';cx.font=`${Math.round(4.2*k)}px Fredoka,sans-serif`;cx.textAlign='center';
-    cx.fillText(sk.n,x,y+8.5*k);
-  });
 }
 
 /* ---------- Claudio: pixel sprite (64x84 grid, drawn every frame) ---------- */
@@ -747,6 +762,15 @@ addEventListener('pointerdown',e=>{
   if(e.target.closest('button,details'))return;
   const now=performance.now()/1000;ptr={x:e.clientX,y:e.clientY,t:now};
   ensureCtxQuiet();
+  // tap a calavera: joins (or leaves) the dance floor
+  for(const h of skullHit){
+    if(Math.hypot(e.clientX-h.x,e.clientY-h.y)<h.r){
+      h.sk.joined=!h.sk.joined;
+      if(h.sk.joined){h.sk.jx=h.x;h.sk.jy=h.y;say(`¡${h.sk.n} se une a la fiesta! 💀🎉`,2400);cheer(1.2);confetti(h.x,h.y,16,Math.PI,300,false);}
+      else say(`${h.sk.n} vuelve a la ofrenda 🕯️`,2000);
+      return;
+    }
+  }
   // tap the jarra to refill it
   if(glass.shown>0&&glass.rect){
     const r=pc.getBoundingClientRect(),k=headC.k,pad=6;
@@ -783,6 +807,7 @@ setTimeout(()=>{
 setTimeout(()=>{if(!micOn&&!mus.on)note('Toca 🎤 para que Claudio escuche, 🎶 para ponerle banda, o toca la pantalla al ritmo. Di «Claudio» y responde.')},5200);
 quietSince=performance.now()/1000;
 requestAnimationFrame(loop);
+window._claudio={hearName,hearSalud,hearSeco,hearInvitame,hearBaila,startFolk,hearMove,glass,toggleChat,chatHear,spanglishReply,learnPerson,extractName,extractOrigin,mem,SKULLS,get skullHit(){return skullHit},get folk(){return folk},get chatOn(){return chatOn},get move(){return move}};
 })();
 </script>
 </body>
