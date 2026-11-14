@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Claudio — versión vectorial B/N</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:#fff;color:#000;font-family:Georgia,'Times New Roman',serif;overflow:hidden;user-select:none;-webkit-user-select:none}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column}
+  header{position:relative;z-index:4;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:20px 16px 0}
+  .chip{background:#fff;border:2px solid #000;border-radius:999px;padding:7px 14px;font-size:13px;display:inline-flex;gap:8px;align-items:center}
+  .dot{width:9px;height:9px;border-radius:50%;background:#000}
+  #stage{position:relative;flex:1;min-height:0}
+  svg{position:absolute;inset:0;width:100%;height:100%}
+  #bubble{position:absolute;left:50%;top:4%;transform:translateX(-50%);max-width:82%;background:#fff;border:2.5px solid #000;border-radius:16px;padding:12px 16px;font-size:16px;line-height:1.4;text-align:center;opacity:0;transition:opacity .3s;z-index:5;pointer-events:none}
+  #bubble.show{opacity:1}
+  #bubble:after{content:"";position:absolute;left:50%;bottom:-11px;width:18px;height:18px;background:#fff;border-right:2.5px solid #000;border-bottom:2.5px solid #000;transform:translateX(-50%) rotate(45deg)}
+  nav{position:relative;z-index:6;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:12px;background:#fff;border-top:2.5px solid #000}
+  button{font:inherit;font-size:15px;padding:10px 18px;border-radius:999px;border:2.5px solid #000;background:#fff;color:#000;cursor:pointer}
+  button:active{transform:scale(.96)}
+  button.on{background:#000;color:#fff}
+  #note{text-align:center;font-size:12px;padding:4px 10px 8px;color:#000;opacity:.7}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="chip"><span class="dot"></span><span id="status">Claudio llegó a la fiesta</span></div>
+    <div class="chip">B / N</div>
+  </header>
+  <div id="stage">
+    <svg id="scene" viewBox="0 0 800 1000" preserveAspectRatio="xMidYMax meet" aria-label="Claudio y la ofrenda en blanco y negro">
+      <defs>
+        <pattern id="hatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="8" stroke="#000" stroke-width="1.4"/>
+        </pattern>
+        <pattern id="cross" width="10" height="10" patternUnits="userSpaceOnUse">
+          <path d="M0 10 10 0 M-2 2 2 -2 M8 12 12 8" stroke="#000" stroke-width="1"/>
+        </pattern>
+      </defs>
+
+      <!-- string lights -->
+      <g id="lights" fill="none" stroke="#000" stroke-width="2">
+        <path id="wire1" d=""/>
+        <path id="wire2" d=""/>
+      </g>
+      <g id="bulbs"></g>
+
+      <!-- ofrenda: calaveras + velas -->
+      <g id="ofrenda"></g>
+
+      <!-- Claudio -->
+      <g id="claudio"></g>
+
+      <!-- rug -->
+      <g id="rug"></g>
+    </svg>
+    <div id="bubble"></div>
+  </div>
+  <div id="note"></div>
+  <nav>
+    <button id="bDance">Bailar</button>
+    <button id="bSkull">Invitar calavera</button>
+    <button id="bSpin">Vuelta</button>
+  </nav>
+</div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const NS='http://www.w3.org/2000/svg';
+const INK='#000',PAPER='#fff';
+let t=0,dancing=false,spinUntil=0;
+const stage=$('#stage'),svg=$('#scene');
+
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);(parent||svg).appendChild(e);return e}
+function say(txt,ms=2800){const b=$('#bubble');b.textContent=txt;b.classList.add('show');clearTimeout(b._t);b._t=setTimeout(()=>b.classList.remove('show'),ms)}
+
+/* ---------- string lights ---------- */
+function buildLights(){
+  const W=800;
+  [['wire1',60],['wire2',110]].forEach(([id,y],r)=>{
+    let d=`M0 ${y}`;for(let x=0;x<=W;x+=40)d+=` Q ${x+20} ${y+34} ${x+40} ${y}`;
+    $('#'+id).setAttribute('d',d);
+  });
+  const bulbs=$('#bulbs');bulbs.innerHTML='';
+  for(let x=20;x<800;x+=40){
+    const y1=60+17, y2=110+17;
+    el('circle',{cx:x,cy:y1+14,r:5,fill:PAPER,stroke:INK,'stroke-width':2},bulbs);
+    el('circle',{cx:x+20,cy:y2+14,r:5,fill:PAPER,stroke:INK,'stroke-width':2},bulbs);
+  }
+}
+
+/* ---------- calaveras (vector skulls) ---------- */
+const SKULLS=[
+  {n:'Angel',hat:'hood'},{n:'Betto',hat:'cap'},{n:'Ariel',hat:'tophat'},
+  {n:'Alejandra',hat:'fedora'},{n:'Bertha',hat:'flowers'},{n:'Misael',hat:'visor'},
+  {n:'P',hat:'hood'},{n:'Yesica',hat:'flowers'},{n:'Maria',hat:'hood'}
+];
+SKULLS.forEach((s,i)=>{s.joined=false;s.slot=i});
+function skullG(sk,scale){
+  const g=document.createElementNS(NS,'g');
+  const S=scale||1;
+  // cranium
+  el('path',{d:'M-16 -6 A16 16 0 1 1 16 -6 L16 6 Q16 12 10 12 L-10 12 Q-16 12 -16 6 Z',fill:PAPER,stroke:INK,'stroke-width':2.4},g);
+  // eyes
+  el('circle',{cx:-6.5,cy:-2,r:3.4,fill:INK},g);
+  el('circle',{cx:6.5,cy:-2,r:3.4,fill:INK},g);
+  // nose
+  el('path',{d:'M0 3 L-2 7 L2 7 Z',fill:INK},g);
+  // teeth
+  for(let i=0;i<4;i++)el('line',{x1:-6+i*4,y1:9,x2:-6+i*4,y2:12,stroke:INK,'stroke-width':1.4},g);
+  el('line',{x1:-7,y1:9,x2:7,y2:9,stroke:INK,'stroke-width':1.2},g);
+  // headpieces
+  const H=sk.hat;
+  if(H==='hood'){el('path',{d:'M-19 4 A19 19 0 0 1 19 4 L19 10 L14 10 L14 2 A14 14 0 0 0 -14 2 L-14 10 L-19 10 Z',fill:PAPER,stroke:INK,'stroke-width':2.2},g)}
+  else if(H==='cap'){el('path',{d:'M-14 -14 A14 10 0 0 1 14 -14 L14 -8 L-14 -8 Z',fill:PAPER,stroke:INK,'stroke-width':2.2},g);el('rect',{x:8,y:-10,width:14,height:3.4,fill:PAPER,stroke:INK,'stroke-width':2},g)}
+  else if(H==='tophat'){el('rect',{x:-11,y:-34,width:22,height:20,fill:PAPER,stroke:INK,'stroke-width':2.2},g);el('rect',{x:-17,y:-16,width:34,height:4,fill:PAPER,stroke:INK,'stroke-width':2.2},g);el('line',{x1:-11,y1:-20,x2:11,y2:-20,stroke:INK,'stroke-width':2.6},g)}
+  else if(H==='fedora'){el('path',{d:'M-13 -22 A13 12 0 0 1 13 -22 L13 -12 L-13 -12 Z',fill:PAPER,stroke:INK,'stroke-width':2.2},g);el('rect',{x:-20,y:-14,width:40,height:4,fill:PAPER,stroke:INK,'stroke-width':2.2},g);el('line',{x1:-13,y1:-16,x2:13,y2:-16,stroke:INK,'stroke-width':2},g)}
+  else if(H==='flowers'){for(let i=0;i<5;i++){const fx=-14+i*7;el('circle',{cx:fx,cy:-16-(i%2?3:0),r:3.6,fill:PAPER,stroke:INK,'stroke-width':2},g);el('circle',{cx:fx,cy:-16-(i%2?3:0),r:1.2,fill:INK},g)}el('path',{d:'M-15 -12 Q0 -8 15 -12',fill:'none',stroke:INK,'stroke-width':2},g)}
+  else if(H==='visor'){el('path',{d:'M-15 -12 A15 12 0 0 1 15 -12 L15 -6 L-15 -6 Z',fill:PAPER,stroke:INK,'stroke-width':2.2},g);el('rect',{x:-16,y:-9,width:32,height:3,fill:PAPER,stroke:INK,'stroke-width':2},g)}
+  g.setAttribute('transform',`scale(${S})`);
+  return g;
+}
+function candleG(){
+  const g=document.createElementNS(NS,'g');
+  el('rect',{x:-4,y:0,width:8,height:18,fill:PAPER,stroke:INK,'stroke-width':2},g);
+  el('line',{x1:0,y1:0,x2:0,y2:-3,stroke:INK,'stroke-width':1.6},g);
+  el('path',{d:'M0 -12 C4 -7 3 -3 0 -3 C-3 -3 -4 -7 0 -12 Z',fill:PAPER,stroke:INK,'stroke-width':2},g);
+  return g;
+}
+function buildOfrenda(){
+  const of=$('#ofrenda');of.innerHTML='';
+  const top=150,step=150,m=70;
+  SKULLS.forEach((sk,i)=>{
+    if(sk.joined)return;
+    const left=i%2===0,row=Math.floor(i/2);
+    const x=left?m:800-m, y=top+row*step;
+    if(y>620)return;
+    const g=skullG(sk,1.5);g.setAttribute('transform',`translate(${x},${y}) scale(1.5)`);of.appendChild(g);
+    const c=candleG();c.setAttribute('transform',`translate(${x+(left?-34:34)},${y+6})`);of.appendChild(c);
+    const tx=el('text',{x,y:y+44,'text-anchor':'middle','font-size':17,fill:INK,'font-style':'italic'},of);tx.textContent=sk.n;
+    sk._el=g;sk._home={x,y};
+    g.style.cursor='pointer';
+    g.addEventListener('pointerdown',e=>{e.stopPropagation();toggleSkull(sk)});
+  });
+}
+function toggleSkull(sk){
+  sk.joined=!sk.joined;
+  if(sk.joined){say(`¡${sk.n} se une a la fiesta!`,2400)}
+  else say(`${sk.n} vuelve a la ofrenda`,2000);
+  buildOfrenda();buildJoined();
+}
+function buildJoined(){
+  // remove old joined group
+  const old=$('#joined');if(old)old.remove();
+  const g=document.createElementNS(NS,'g');g.id='joined';
+  svg.insertBefore(g,$('#claudio'));
+  const joined=SKULLS.filter(s=>s.joined);
+  joined.forEach((sk,i)=>{
+    const sg=skullG(sk,1.1);
+    sg.setAttribute('class','joined-skull');
+    sg.dataset.slot=sk.slot;
+    g.appendChild(sg);sk._j=sg;
+    const tx=el('text',{y:34,'text-anchor':'middle','font-size':13,fill:INK,'font-style':'italic'},sg);tx.textContent=sk.n;
+    sg.style.cursor='pointer';
+    sg.addEventListener('pointerdown',e=>{e.stopPropagation();toggleSkull(sk)});
+  });
+}
+
+/* ---------- Claudio (vector block) ---------- */
+function buildClaudio(){
+  const c=$('#claudio');c.innerHTML='';
+  const g=document.createElementNS(NS,'g');g.id='cbody';
+  // body block
+  el('rect',{x:-34,y:-110,width:68,height:96,fill:PAPER,stroke:INK,'stroke-width':3},g);
+  // hatch shade on right
+  el('rect',{x:14,y:-110,width:20,height:96,fill:'url(#hatch)',stroke:INK,'stroke-width':2},g);
+  // legs
+  el('rect',{x:-26,y:-14,width:16,height:14,fill:PAPER,stroke:INK,'stroke-width':2.6},g);
+  el('rect',{x:10,y:-14,width:16,height:14,fill:PAPER,stroke:INK,'stroke-width':2.6},g);
+  // eyes
+  const eL=el('g',{},g),eR=el('g',{},g);
+  el('rect',{x:-22,y:-92,width:14,height:18,fill:PAPER,stroke:INK,'stroke-width':2.4},eL);
+  el('rect',{x:8,y:-92,width:14,height:18,fill:PAPER,stroke:INK,'stroke-width':2.4},eR);
+  el('rect',{class:'pupil',x:-17,y:-86,width:6,height:9,fill:INK},eL);
+  el('rect',{class:'pupil',x:13,y:-86,width:6,height:9,fill:INK},eR);
+  // blush (cross-hatch squares)
+  el('rect',{x:-28,y:-70,width:7,height:7,fill:'url(#cross)',stroke:INK,'stroke-width':1.4},g);
+  el('rect',{x:21,y:-70,width:7,height:7,fill:'url(#cross)',stroke:INK,'stroke-width':1.4},g);
+  // mouth
+  el('path',{id:'mouth',d:'M-12 -58 Q0 -50 12 -58',fill:'none',stroke:INK,'stroke-width':2.6,'stroke-linecap':'round'},g);
+  // arms
+  el('path',{id:'armL',d:'M-34 -96 Q-52 -88 -54 -66',fill:'none',stroke:INK,'stroke-width':3,'stroke-linecap':'round'},g);
+  el('path',{id:'armR',d:'M34 -96 Q52 -88 54 -66',fill:'none',stroke:INK,'stroke-width':3,'stroke-linecap':'round'},g);
+  el('circle',{id:'handL',cx:-54,cy:-64,r:5,fill:PAPER,stroke:INK,'stroke-width':2.4},g);
+  el('circle',{id:'handR',cx:54,cy:-64,r:5,fill:PAPER,stroke:INK,'stroke-width':2.4},g);
+  c.appendChild(g);
+  c.setAttribute('transform','translate(400,760)');
+}
+
+/* ---------- rug ---------- */
+function buildRug(){
+  const r=$('#rug');r.innerHTML='';
+  const y=940;
+  el('rect',{x:0,y:y,width:800,height:60,fill:PAPER,stroke:INK,'stroke-width':3},r);
+  for(let x=0;x<800;x+=40){
+    el('path',{d:`M${x} ${y} L${x+20} ${y-16} L${x+40} ${y} Z`,fill:PAPER,stroke:INK,'stroke-width':2},r);
+  }
+  for(let x=0;x<800;x+=20)el('line',{x1:x,y1:y+10,x2:x,y2:y+50,stroke:INK,'stroke-width':1},r);
+  el('line',{x1:0,y1:y+30,x2:800,y2:y+30,stroke:INK,'stroke-width':2},r);
+}
+
+/* ---------- animation ---------- */
+let last=performance.now();
+function frame(){
+  const now=performance.now(),dt=Math.min(.05,(now-last)/1000);last=now;t+=dt;
+  const c=$('#claudio');
+  const spinning=now<spinUntil;
+  const bob=dancing?Math.abs(Math.sin(t*6))*26:Math.abs(Math.sin(t*1.6))*6;
+  const sw=dancing?Math.sin(t*6)*10:Math.sin(t*1.6)*3;
+  const rot=spinning?Math.sin(t*10)*.5:(dancing?Math.sin(t*6)*.08:0);
+  c.setAttribute('transform',`translate(${400+sw},${760-bob}) rotate(${rot*57.3})`);
+  // arms
+  const aL=$('#armL'),aR=$('#armR'),hL=$('#handL'),hR=$('#handR');
+  if(dancing||spinning){
+    const w=Math.sin(t*8)*20;
+    aL.setAttribute('d',`M-34 -96 Q-52 ${-88-w} -54 ${-66-w}`);
+    aR.setAttribute('d',`M34 -96 Q52 ${-88+w} 54 ${-66+w}`);
+    hL.setAttribute('cy',-64-w);hR.setAttribute('cy',-64+w);
+  }else{
+    aL.setAttribute('d','M-34 -96 Q-52 -88 -54 -66');aR.setAttribute('d','M34 -96 Q52 -88 54 -66');
+    hL.setAttribute('cy',-64);hR.setAttribute('cy',-64);
+  }
+  // mouth opens when dancing
+  $('#mouth').setAttribute('d',dancing?`M-12 -58 Q0 ${-48+Math.abs(Math.sin(t*6))*4} 12 -58`:'M-12 -58 Q0 -50 12 -58');
+  // joined skulls orbit
+  const joined=SKULLS.filter(s=>s.joined);
+  joined.forEach((sk,i)=>{
+    if(!sk._j)return;
+    const ang=t*1.1+sk.slot*.8, rad=150+((sk.slot%3)-1)*22;
+    const x=400+Math.cos(ang)*rad, y=720+Math.sin(ang)*rad*.32;
+    const bb=Math.abs(Math.sin(t*5+sk.slot))*14;
+    sk._j.setAttribute('transform',`translate(${x},${y-bb}) scale(1.1)`);
+  });
+  requestAnimationFrame(frame);
+}
+
+/* ---------- wire up ---------- */
+buildLights();buildOfrenda();buildClaudio();buildRug();
+$('#bDance').addEventListener('click',()=>{dancing=!dancing;$('#bDance').classList.toggle('on',dancing);say(dancing?'¡A bailar!':'Descanso…',1800)});
+$('#bSpin').addEventListener('click',()=>{spinUntil=performance.now()+2200;say('¡Una vuelta!',1600)});
+$('#bSkull').addEventListener('click',()=>{
+  const rest=SKULLS.filter(s=>!s.joined);
+  if(rest.length){toggleSkull(rest[Math.floor(Math.random()*rest.length)])}
+  else say('¡Ya están todas bailando!',2000);
+});
+setTimeout(()=>say('¡Buenas! Soy Claudio, en blanco y negro.',3200),600);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
